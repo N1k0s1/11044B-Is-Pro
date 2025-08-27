@@ -1,5 +1,4 @@
 #include "main.h"
-
 /**
  * A callback function for LLEMU's center button.
  *
@@ -58,7 +57,23 @@ void competition_initialize() {}
  * will be stopped. Re-enabling the robot will restart the task, not re-start it
  * from where it left off.
  */
-void autonomous() {}
+void autonomous() {
+    pros::MotorGroup left_mg({3, 20});    // Creates a motor group with forwards ports 1 & 2
+    pros::MotorGroup right_mg({1, 2, true});  // Creates a motor group with forwards ports 3 & 20
+	pros::Motor bottomElevator(12);  // Creates a motor on port 12 
+	pros::Motor topElevator(11);     // Creates a motor on port 11 
+	pros::MotorGroup flyWheel({4, 5});  // Creates a motor group with forwards ports 4 & 5
+    pros::adi::Pneumatics vexBeatingDevice('a', false);  // Starts retracted, extends when the ADI port is high
+
+  right_mg.move_relative(10000, 100);
+  left_mg.move_relative(10000, 100);
+  right_mg.move_relative(150, 100);
+  pros::delay(1000);
+  bottomElevator.move_velocity(600);		  // sets bottomElevator to 100% velocity
+  topElevator.move_velocity(600);			  // sets topElevator to 100% velocity
+  flyWheel.move_velocity(-600);
+  
+}
 
 /**
  * Runs the operator control code. This function will be started in its own task
@@ -77,8 +92,10 @@ void opcontrol() {
     pros::Controller master(pros::E_CONTROLLER_MASTER);
     pros::MotorGroup left_mg({3, 20});    // Creates a motor group with forwards ports 1 & 2
     pros::MotorGroup right_mg({1, 2});  // Creates a motor group with forwards ports 3 & 20
-    pros::Motor bottomElevator(12);  // Creates a motor on port 12 with blue gear ratio (6:1)
-    pros::Motor topElevator(11);     // Creates a motor on port 11 with blue gear ratio (6:1)
+	pros::Motor bottomElevator(12);  // Creates a motor on port 12 
+	pros::Motor topElevator(11);     // Creates a motor on port 11 
+	pros::MotorGroup flyWheel({4, 5});  // Creates a motor group with forwards ports 4 & 5
+    pros::adi::Pneumatics vexBeatingDevice('a', false);  // Starts retracted, extends when the ADI port is high
 
 
 	while (true) {
@@ -87,23 +104,34 @@ void opcontrol() {
 		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);  // Prints status of the emulated screen LCDs
 
 		// Arcade control scheme
-		int dir = master.get_analog(ANALOG_LEFT_Y);    // Gets amount forward/backward from left joystick
-		int turn = master.get_analog(ANALOG_RIGHT_X);  // Gets the turn left/right from right joystick
-		left_mg.move(dir - turn);                      // Sets left motor voltage
-		right_mg.move(dir + turn);                     // Sets right motor voltage
+		int power = master.get_analog(ANALOG_RIGHT_X);
+		int turn = master.get_analog(ANALOG_LEFT_Y);
+		int left = power + turn;
+		int right = power - turn;
+		left_mg.move(left);
+		right_mg.move(right);
 
-		if (master.get_digital(DIGITAL_Y)) {		  // if the R1 button on the controller is pressed, the robot will do the following
-			bottomElevator.move_velocity(100);		  // sets bottomElevator to 100% velocity
-			topElevator.move_velocity(100);			  // sets topElevator to 100% velocity
+		if (master.get_digital(DIGITAL_L1)) {		  // if the R1 button on the controller is pressed, the robot will do the following
+			bottomElevator.move_velocity(600);		  // sets bottomElevator to 100% velocity
+			topElevator.move_velocity(600);			  // sets topElevator to 100% velocity
+			flyWheel.move_velocity(-600);
 		  }
-		  else if (master.get_digital(DIGITAL_B)) {  // if the R2 button on the controller is pressed, the robot will do the following
-			bottomElevator.move_velocity(100);		  // sets bottomElevator to 100% velocity
-			topElevator.move_velocity(-100);		  // sets topElevator to 100% velocity reversing, hence the -
+		  else if (master.get_digital(DIGITAL_R1)) {  // if the R2 button on the controller is pressed, the robot will do the following
+			bottomElevator.move_velocity(600);		  // sets bottomElevator to 100% velocity
+			topElevator.move_velocity(-600);		  // sets topElevator to 100% velocity reversing, hence the -
+			flyWheel.move_velocity(600);
 		}
 		  else {
 			bottomElevator.move_velocity(0);	// sets bottomElevator to 0 velocity when no buttons are pressed.
 			topElevator.move_velocity(0);		// sets topElevator to 0 velocity when no buttons are pressed.
+			flyWheel.move_velocity(0);		// sets flyWheel to 0 velocity when no buttons are pressed.
 		  }
+		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
+			vexBeatingDevice.extend();
+		}
+		  else if(master.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) {
+			vexBeatingDevice.retract();
+		}
 		pros::delay(20);                               // Run for 20 ms then update
 	}
 }
